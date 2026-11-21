@@ -4,6 +4,10 @@ A local music workbench for dropping in a track and getting its bones back: key 
 
 No npm, no build step, no network calls. A Python standard-library HTTP server serves a static UI on loopback and runs the analysis engine behind two endpoints.
 
+![Analyze tab showing key, tempo, structure, chord progression, drum grid and critique](docs/analyze.jpg)
+
+![Tuner tab with needle meter, guitar string presets and piano reference keyboard](docs/tune.jpg)
+
 ## What it does
 
 **Analyze a track**
