@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#07070a">
+<title>MUZZIC</title>
+<link rel="stylesheet" href="app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230b0b10'/><path d='M9 20V12l5 6 4-8v10' stroke='%238f80ff' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
+        <path d="M7 22V10l6 8 5-10v14" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>MUZZIC</span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="tab is-active" data-tab="analyze" role="tab" id="tab-analyze"
+              aria-controls="panel-analyze" aria-selected="true" tabindex="0">Analyze</button>
+      <button class="tab" data-tab="tune" role="tab" id="tab-tune"
+              aria-controls="panel-tune" aria-selected="false" tabindex="-1">Tune</button>
+    </nav>
+    <div class="engine" id="engineStatus"><i></i>idle</div>
+  </div>
+</header>
+
+<main>
+  <!-- ─────────────────────────── ANALYZE ─────────────────────────── -->
+  <section class="panel is-active" id="panel-analyze" role="tabpanel" aria-labelledby="tab-analyze">
+
+    <div class="hero" id="dropzone">
+      <div class="hero-inner">
+        <p class="eyebrow">listen · measure · judge</p>
+        <h1>Drop a track.<br>Get its bones.</h1>
+        <p class="lede">
+          Tempo, key and mode, chord movement, section map, a playable drum grid
+          and a read from Nightshift — the house taste.
+        </p>
+        <div class="hero-actions">
+          <button class="btn primary" id="pickFile">Choose audio</button>
+          <span class="or">or drop a file anywhere</span>
+        </div>
+        <p class="formats">wav · mp3 · flac · ogg · aiff · m4a <span class="sep">/</span> first 90 seconds</p>
+        <input type="file" id="fileInput" accept="audio/*" hidden>
+      </div>
+
+      <div class="hero-visual" aria-hidden="true">
+        <div class="hv-card">
+          <div class="hv-head"><span>16th grid · preview</span><i></i></div>
+          <div class="hv-metrics">
+            <div><b>123</b><small>bpm</small></div>
+            <div><b>A♯m</b><small>key</small></div>
+            <div><b>83</b><small>score</small></div>
+          </div>
+          <div class="hv-grid">
+            <i style="left:0%;top:0%"></i>
+            <i style="left:25%;top:0%"></i>
+            <i style="left:50%;top:0%"></i>
+            <i style="left:75%;top:0%"></i>
+            <i style="left:25%;top:33.333%"></i>
+            <i style="left:75%;top:33.333%"></i>
+            <i class="soft" style="left:0%;top:66.667%"></i>
+            <i class="soft" style="left:12.5%;top:66.667%"></i>
+            <i class="soft" style="left:25%;top:66.667%"></i>
+            <i class="soft" style="left:37.5%;top:66.667%"></i>
+            <i class="soft" style="left:50%;top:66.667%"></i>
+            <i class="soft" style="left:62.5%;top:66.667%"></i>
+            <i class="soft" style="left:75%;top:66.667%"></i>
+            <i class="soft" style="left:87.5%;top:66.667%"></i>
+          </div>
+          <div class="hv-chords">
+            <span class="home">A♯m</span><span>D♭</span><span>F7</span><span>E♭</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="loading" id="loading" hidden>
+      <div class="scanline"></div>
+      <p class="phase" id="phase">reading the waveform</p>
+      <ul class="phases">
+        <li data-phase="0">reading the waveform</li>
+        <li data-phase="1">finding the pulse</li>
+        <li data-phase="2">naming the key</li>
+        <li data-phase="3">lifting the drum pattern</li>
+        <li data-phase="4">asking Nightshift</li>
+      </ul>
+    </div>
+
+    <div class="results" id="results" hidden>
+
+      <div class="strip">
+        <div class="strip-file">
+          <span class="k">track</span>
+          <span class="v" id="trackName">—</span>
+          <span class="meta" id="trackMeta">—</span>
+        </div>
+        <p class="verdict" id="verdict"></p>
+        <button class="btn ghost" id="resetBtn">New track</button>
+      </div>
+
+      <div class="grid">
+
+        <article class="card key-card">
+          <h2>Key &amp; scale</h2>
+          <div class="key-big" id="keyLabel">—</div>
+          <div class="chips" id="scaleDegrees"></div>
+          <div class="conf">
+            <div class="conf-bar"><span id="confFill"></span></div>
+            <span id="confText">—</span>
+          </div>
+          <p class="fine" id="keyAlt"></p>
+        </article>
+
+        <article class="card tempo-card">
+          <h2>Tempo &amp; meter</h2>
+          <div class="stat-row">
+            <div class="stat">
+              <span class="num" id="bpmVal">—</span>
+              <span class="unit">BPM</span>
+            </div>
+            <div class="stat small">
+              <span class="num" id="meterVal">—</span>
+              <span class="unit">meter</span>
+            </div>
+          </div>
+          <dl class="kv">
+            <div><dt>beat confidence</dt><dd id="beatConf">—</dd></div>
+            <div><dt>bar start</dt><dd id="downbeat">—</dd></div>
+            <div><dt>duration</dt><dd id="duration">—</dd></div>
+          </dl>
+          <div class="ribbon" id="structure"></div>
+          <p class="fine">section map</p>
+        </article>
+
+        <article class="card taste-card">
+          <h2>Nightshift</h2>
+          <div class="taste-body">
+            <div class="score-wrap">
+              <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="ring-bg" cx="60" cy="60" r="52"/>
+                <circle class="ring-fg" id="ringFg" cx="60" cy="60" r="52"/>
+              </svg>
+              <div class="score-center">
+                <span class="score-num" id="scoreNum">—</span>
+                <span class="grade" id="grade">—</span>
+              </div>
+            </div>
+            <div class="axes" id="axes"></div>
+          </div>
+        </article>
+
+        <article class="card wide">
+          <h2>Harmonic movement</h2>
+          <div class="progression" id="progression"></div>
+          <p class="fine" id="harmonyFootnote">—</p>
+        </article>
+
+        <article class="card">
+          <h2>Timbre</h2>
+          <div class="bars" id="timbreBars"></div>
+        </article>
+
+        <article class="card full">
+          <h2>Drum grid <span class="h2-note">16ths · most common bar</span></h2>
+          <div class="drum-body">
+            <div class="drum-main">
+              <div class="drum" id="drumGrid"></div>
+              <pre class="drumtab" id="drumTab"></pre>
+              <div class="drum-foot">
+                <span id="drumMeta">—</span>
+                <a class="btn ghost" id="midiBtn" href="#" download>Download .mid</a>
+              </div>
+            </div>
+            <aside class="drum-side">
+              <h3>Hit consistency</h3>
+              <div class="hits" id="hits"></div>
+            </aside>
+          </div>
+        </article>
+
+        <article class="card wide notes-card">
+          <h2>Notes from Nightshift</h2>
+          <p class="notes-verdict" id="notesVerdict"></p>
+          <ol class="fixes" id="fixes"></ol>
+          <div class="strengths" id="strengths"></div>
+        </article>
+
+      </div>
+    </div>
+
+    <div class="error-card" id="errorCard" hidden>
+      <strong>Analysis failed</strong>
+      <p id="errorText"></p>
+      <button class="btn ghost" id="retryBtn" hidden>Try again</button>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── TUNE ─────────────────────────── -->
+  <section class="panel" id="panel-tune" role="tabpanel" aria-labelledby="tab-tune">
+    <div class="tune-intro">
+      <p class="eyebrow">chromatic tuner</p>
+      <h1>Get it true.</h1>
+      <p class="lede">Microphone in, pitch out. ±3 cents is in tune.</p>
+    </div>
+
+    <article class="readout">
+      <div class="readout-left">
+        <div class="det-note" id="detNote">—</div>
+        <div class="det-freq" id="detFreq">— Hz</div>
+        <div class="det-cents" id="centsVal">—</div>
+      </div>
+      <div class="readout-right">
+        <div class="meter" id="meter">
+          <div class="meter-face">
+            <span class="m-tick" style="left:0%"></span>
+            <span class="m-tick" style="left:25%"></span>
+            <span class="m-tick mid" style="left:50%"></span>
+            <span class="m-tick" style="left:75%"></span>
+            <span class="m-tick" style="left:100%"></span>
+            <div class="m-zone"></div>
+            <div class="needle" id="needle"></div>
+          </div>
+          <div class="meter-scale"><span>−50 flat</span><span>0</span><span>+50 sharp</span></div>
+        </div>
+        <button class="btn primary" id="micBtn">Enable microphone</button>
+        <p class="mic-note" id="micNote">Audio stays on this machine.</p>
+      </div>
+    </article>
+
+    <div class="tune-grid">
+      <article class="card">
+        <div class="card-head">
+          <h2>Guitar</h2>
+          <select id="tuning" aria-label="Tuning"></select>
+        </div>
+        <div class="strings" id="strings"></div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h2>Piano</h2>
+          <div class="octave">
+            <button id="octDown" aria-label="Lower octave">−</button>
+            <span id="octLabel">3</span>
+            <button id="octUp" aria-label="Raise octave">+</button>
+          </div>
+        </div>
+        <div class="keyboard" id="keyboard"></div>
+        <p class="fine">Click a key for a reference tone · detected note lights up.</p>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>MUZZIC · runs locally on 127.0.0.1</span>
+  <span id="footEngine">—</span>
+</footer>
+
+<script src="tuner.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
