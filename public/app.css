@@ -340,6 +340,61 @@ h1 {
 
 .btn.ghost:hover { color: var(--ink); border-color: var(--accent-line); background: var(--accent-soft); }
 
+/* ── microphone recorder ─────────────────────────────────── */
+
+.recorder {
+  margin-top: 34px;
+  padding: 30px 32px;
+  border-radius: var(--r);
+  border: 1px solid var(--accent-line);
+  background:
+    radial-gradient(520px 200px at 0% 0%, rgba(143, 128, 255, .1), transparent 70%),
+    var(--card);
+}
+
+.rec-head { display: flex; align-items: center; gap: 12px; }
+
+.rec-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #ff5f6d;
+  box-shadow: 0 0 10px rgba(255, 95, 109, .8);
+  animation: rec-pulse 1.4s ease-in-out infinite;
+}
+
+.rec-label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--ink-2);
+}
+
+.rec-time {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 22px; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.rec-meter {
+  margin: 22px 0 14px;
+  height: 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .05);
+  overflow: hidden;
+}
+
+.rec-meter span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7f6dff, #a99dff);
+  transition: width .08s linear;
+}
+
+.rec-hint { margin: 0; font-size: 13px; color: var(--ink-3); min-height: 18px; }
+
+.rec-actions { display: flex; gap: 12px; margin-top: 22px; flex-wrap: wrap; }
+
+@keyframes rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
 /* ── loading ─────────────────────────────────────────────── */
 
 .loading {

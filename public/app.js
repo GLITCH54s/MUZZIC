@@ -39,11 +39,11 @@
     });
   });
 
-    // When the page itself is served by the server a relative URL is enough.
-  // Opened straight off disk (file://) or from another local preview, the
-  // browser resolves '/api/...' against nothing and the fetch dies — so pin
-  // the absolute origin. The server answers CORS for exactly this case.
-  const API = location.host === '127.0.0.1:8765' ? '' : 'http://127.0.0.1:8765';
+    // When the page is served by server.py (any host or port) a relative URL
+  // reaches the API. Opened straight off disk (file://) the browser resolves
+  // '/api/...' against nothing, so pin the default loopback origin instead;
+  // the server answers CORS for exactly this case.
+  const API = location.protocol === 'file:' ? 'http://127.0.0.1:8765' : '';
 
 const engine = (mode, text) => {
     const n = $('engineStatus');
@@ -72,7 +72,7 @@ const engine = (mode, text) => {
         state.offline = true;
         state.offlineCard = true;
         engine('err', 'offline');
-        $('errorText').textContent = `The analysis server (127.0.0.1:8765) is not reachable from this page (${location.href}). Start it with server.py, or open the app at http://127.0.0.1:8765 — this message clears itself when it is back.`;
+        $('errorText').textContent = `The analysis server (${API || location.origin}) is not reachable from this page (${location.href}). Start it with server.py, or open the app at ${API || location.origin} — this message clears itself when it is back.`;
         $('errorCard').hidden = false;
         $('retryBtn').hidden = true;
       }
@@ -180,6 +180,172 @@ const engine = (mode, text) => {
   $('retryBtn').addEventListener('click', () => {
     if (state.lastFile) start(state.lastFile);
   });
+
+  /* ── microphone recording ───────────────────────────────── */
+
+  const REC_MAX = 90;
+  const recPanel = $('recorder');
+  let rec = null;
+  let recPending = false;
+
+  const clock = (s) =>
+    `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  $('recordBtn').addEventListener('click', () => beginRecording());
+  $('recStop').addEventListener('click', () => stopRecording(true));
+  $('recCancel').addEventListener('click', () => stopRecording(false));
+
+  async function beginRecording() {
+    if (rec || recPending || state.busy) return;
+    $('errorCard').hidden = true;
+
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!navigator.mediaDevices?.getUserMedia || !AC) {
+      return fail('This browser cannot record audio. Try a current Chrome, Edge, Firefox or Safari.');
+    }
+    if (!window.isSecureContext) {
+      return fail('Microphone recording needs a secure context — open the app at http://127.0.0.1:8765 or over https.');
+    }
+
+    recPending = true;
+    const ctx = new AC();
+    ctx.resume().catch(() => {});
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: 1,
+        },
+      });
+    } catch (err) {
+      recPending = false;
+      ctx.close().catch(() => {});
+      const blocked = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+      return fail(blocked
+        ? 'Microphone blocked — allow it in the browser site settings, then press Record again.'
+        : `Microphone unavailable: ${(err && err.message) || err}`);
+    }
+
+    const src = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    src.connect(analyser);
+
+    // ScriptProcessor is deprecated but still the simplest capture path that
+    // works in every current browser without a separate worklet module.
+    // A silent branch keeps the processor running without monitoring the mic
+    // back through the speakers.
+    const proc = ctx.createScriptProcessor(4096, 1, 1);
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    src.connect(proc);
+    proc.connect(mute);
+    mute.connect(ctx.destination);
+
+    rec = {
+      ctx, stream, src, proc, analyser,
+      chunks: [], frames: 0, done: false,
+      buf: new Float32Array(analyser.fftSize),
+      raf: 0, ticker: 0,
+    };
+    recPending = false;
+
+    proc.onaudioprocess = (e) => {
+      if (!rec || rec.done) return;
+      rec.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      rec.frames += e.inputBuffer.length;
+    };
+
+    $('dropzone').hidden = true;
+    recPanel.hidden = false;
+    $('recHint').textContent = 'Sing, hum or play into the microphone. Up to 90 seconds.';
+    $('recTime').textContent = '0:00';
+    $('recLevel').style.width = '0%';
+    $('recStop').focus();
+
+    rec.raf = requestAnimationFrame(paintLevel);
+    rec.ticker = setInterval(() => {
+      if (!rec || rec.done) return;
+      const elapsed = rec.frames / rec.ctx.sampleRate;
+      $('recTime').textContent = clock(elapsed);
+      if (elapsed >= REC_MAX) stopRecording(true);
+    }, 200);
+  }
+
+  function paintLevel() {
+    if (!rec || rec.done) return;
+    rec.raf = requestAnimationFrame(paintLevel);
+    rec.analyser.getFloatTimeDomainData(rec.buf);
+    let sum = 0;
+    for (let i = 0; i < rec.buf.length; i++) sum += rec.buf[i] * rec.buf[i];
+    const rms = Math.sqrt(sum / rec.buf.length);
+    const db = 20 * Math.log10(Math.max(rms, 1e-5));
+    const level = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+    $('recLevel').style.width = `${level.toFixed(1)}%`;
+  }
+
+  function stopRecording(analyse) {
+    if (!rec || rec.done) return;
+    const { ctx, stream, src, proc, chunks, frames } = rec;
+    const sampleRate = ctx.sampleRate;
+    rec.done = true;
+    cancelAnimationFrame(rec.raf);
+    clearInterval(rec.ticker);
+    proc.onaudioprocess = null;
+    try { src.disconnect(); proc.disconnect(); } catch { /* already torn down */ }
+    stream.getTracks().forEach((t) => t.stop());
+    ctx.close().catch(() => {});
+    rec = null;
+
+    recPanel.hidden = true;
+    $('recLevel').style.width = '0%';
+    $('dropzone').hidden = false;
+
+    if (!analyse) return;
+
+    const seconds = frames / sampleRate;
+    if (seconds < 1) {
+      return fail('That take was under a second — press Record and play a little longer.');
+    }
+
+    const name = `Mic take ${Math.floor(seconds / 60)}m${String(Math.round(seconds % 60)).padStart(2, '0')}s.wav`;
+    const file = new File([encodeWav(chunks, sampleRate)], name, { type: 'audio/wav' });
+    start(file);
+  }
+
+  function encodeWav(chunks, sampleRate) {
+    const frames = chunks.reduce((n, c) => n + c.length, 0);
+    const view = new DataView(new ArrayBuffer(44 + frames * 2));
+    const ascii = (offset, text) => {
+      for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
+    };
+    ascii(0, 'RIFF');
+    view.setUint32(4, 36 + frames * 2, true);
+    ascii(8, 'WAVE');
+    ascii(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);                 // PCM
+    view.setUint16(22, 1, true);                 // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);    // byte rate
+    view.setUint16(32, 2, true);                 // block align
+    view.setUint16(34, 16, true);                // bits per sample
+    ascii(36, 'data');
+    view.setUint32(40, frames * 2, true);
+    let off = 44;
+    for (const chunk of chunks) {
+      for (let i = 0; i < chunk.length; i++) {
+        const s = Math.max(-1, Math.min(1, chunk[i]));
+        view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+        off += 2;
+      }
+    }
+    return new Blob([view.buffer], { type: 'audio/wav' });
+  }
 
   const PHASES = 5;
   function beginPhases() {

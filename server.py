@@ -4,9 +4,9 @@
 Runs the analysis engine (key/scale, tempo, chords, structure, drum
 transcription, taste critique) behind a tiny HTTP API and serves the UI.
 
-    python server.py [--port 8765] [--no-browser]
+    python server.py [--port 8765] [--host 127.0.0.1] [--no-browser]
 
-No npm, no build step, no network calls: stdlib server + the local skills.
+No npm, no build step, no network calls: stdlib server + the bundled engine.
 """
 import argparse
 import functools
@@ -32,9 +32,15 @@ PUBLIC = ROOT / "public"
 CACHE = Path(tempfile.gettempdir()) / "muzzic"
 CACHE.mkdir(parents=True, exist_ok=True)
 
-SKILLS = Path(os.environ.get("MUZZIC_SKILLS", Path.home() / ".qoder" / "skills"))
-for sub in ("music-theory-analyze/scripts", "drum-transcribe/scripts", "music-taste-critic/scripts"):
-    sys.path.insert(0, str(SKILLS / sub))
+ENGINE = ROOT / "engine"
+if ENGINE.exists():
+    sys.path.insert(0, str(ENGINE))
+else:
+    # Legacy layout: modules installed as Qoder skills. On any other machine
+    # the vendored engine/ folder above is always used instead.
+    SKILLS = Path(os.environ.get("MUZZIC_SKILLS", Path.home() / ".qoder" / "skills"))
+    for sub in ("music-theory-analyze/scripts", "drum-transcribe/scripts", "music-taste-critic/scripts"):
+        sys.path.insert(0, str(SKILLS / sub))
 
 import theory as theory_mod          # noqa: E402
 import drums as drums_mod            # noqa: E402
@@ -236,6 +242,8 @@ def warm_engine():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="interface to bind; use 0.0.0.0 inside Docker or on a LAN")
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--no-warm", dest="warm", action="store_false")
     args = ap.parse_args()
@@ -248,11 +256,18 @@ def main():
         warm_engine()
 
     handler = functools.partial(Handler, directory=str(PUBLIC))
-    httpd = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
-    url = f"http://127.0.0.1:{args.port}/"
-    print(f"\n  MUZZIC  →  {url}\n  ffmpeg: {'yes' if FFMPEG else 'not found (WAV/FLAC only)'}")
+    try:
+        httpd = ThreadingHTTPServer((args.host, args.port), handler)
+    except OSError as exc:
+        sys.exit(f"cannot bind {args.host}:{args.port} — {exc}\n"
+                 f"another MUZZIC instance may already be running; try --port {args.port + 1}")
+
+    shown_host = "127.0.0.1" if args.host in ("0.0.0.0", "::") else args.host
+    url = f"http://{shown_host}:{args.port}/"
+    print(f"\n  MUZZIC  →  {url}")
+    print(f"  ffmpeg: {'yes' if FFMPEG else 'not found (WAV/FLAC/OGG work; install ffmpeg for mp3/m4a)'}")
     print("  ctrl-c to stop\n")
-    if not args.no_browser:
+    if not args.no_browser and args.host in ("127.0.0.1", "localhost"):
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     try:
         httpd.serve_forever()

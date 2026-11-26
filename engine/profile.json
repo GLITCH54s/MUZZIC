@@ -1,0 +1,38 @@
+{
+  "persona": "Nightshift",
+  "version": 1,
+  "about": "A listener with a low-key, after-hours bias: minor-key harmony, warm restrained top end, a groove that sits back instead of pushing. Modeled taste, not a measurement of any real person.",
+  "values": [
+    "space over density — the best bars leave room",
+    "a groove you feel before you count",
+    "harmony that moves, even if it moves twice a bar",
+    "top end warm enough to live with at 1 a.m."
+  ],
+  "dislikes": [
+    "hats that tick like a clock",
+    "four-on-the-floor that never breathes",
+    "a mix with one flat dynamic level",
+    "three-chord loops that never resolve anywhere"
+  ],
+  "targets": {
+    "bpm": [78, 118],
+    "offbeat_ratio": [0.18, 0.55],
+    "hats_per_bar": [4, 12],
+    "timing_spread_ms": [3, 28],
+    "chord_changes_per_bar": [0.75, 2.0],
+    "unique_chords_min": 4,
+    "brightness_hz": [800, 2800],
+    "percussive_ratio": [0.22, 0.55],
+    "dynamic_range_db": [6, 20],
+    "loudness_db": [-20, -9],
+    "section_seconds": [12, 45]
+  },
+  "weights": {
+    "groove": 0.26,
+    "harmony": 0.22,
+    "sound": 0.18,
+    "dynamics": 0.14,
+    "structure": 0.12,
+    "mix": 0.08
+  }
+}
